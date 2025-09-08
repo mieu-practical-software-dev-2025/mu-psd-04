@@ -15,16 +15,31 @@
 
         <div class="mb-3">
             <label for="inputText" class="form-label">冷蔵庫にある食材を入力してください（カンマ区切り）:</label>
-            <textarea id="inputText" class="form-control" rows="3" v-model="inputText" placeholder="例: 豚肉, 玉ねぎ, 卵"></textarea>
+            <textarea id="inputText" class="form-control" rows="3" v-model="inputText" placeholder="例: 豚肉, 玉ねぎ, 卵" :disabled="isLoading"></textarea>
         </div>
 
         <div class="mb-3">
-            <button @click="generateRecipe" class="btn btn-primary">レシピを提案してもらう</button>
+            <button @click="execute" class="btn btn-primary" :disabled="isLoading">
+                <span v-if="isLoading" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+                {{ isLoading ? '考え中...' : 'レシピを考える' }}
+            </button>
         </div>
         
-        <h3>結果:</h3>
-        <div class="result-area p-3 border rounded" :class="{ 'alert alert-info': resultText && !resultText.startsWith('エラー:'), 'alert alert-danger': resultText.startsWith('エラー:') }">
-            <pre style="white-space: pre-wrap;">{{ resultText }}</pre>
+        <!-- 結果表示エリア -->
+        <div v-if="resultText || isLoading">
+            <h3>結果:</h3>
+            <div class="result-area p-3 border rounded" :class="{ 'alert alert-info': !isError, 'alert alert-danger': isError, 'text-muted': isLoading }">
+                <pre style="white-space: pre-wrap; word-wrap: break-word;">{{ resultText }}</pre>
+            </div>
+
+            <!-- 別の料理提案ボタンとリスト -->
+            <div class="mt-3" v-if="!isError && firstRequestDone && !isLoading">
+                <button @click="getOtherSuggestions" class="btn btn-secondary" v-if="!otherSuggestions.length" :disabled="isLoading">別の料理を提案</button>
+                <div v-if="otherSuggestions.length" class="mt-2">
+                    <p>こちらの料理はいかがですか？</p>
+                    <button v-for="suggestion in otherSuggestions" :key="suggestion" @click="getSpecificRecipe(suggestion)" class="btn btn-outline-success me-2 mb-2">{{ suggestion }}</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -35,19 +50,26 @@
             data() {
                 return {
                     inputText: '',
-                    resultText: 'ここに結果が表示されます。'
+                    resultText: '', // 初期状態は空にする
+                    isLoading: false, // 処理中フラグ
+                    isError: false,
+                    firstRequestDone: false, // 最初のレシピ検索が完了したか
+                    otherSuggestions: [], // 他に提案された料理リスト
                 };
             },
             methods: {
-                async sendRequest(context = null) {
+                async sendRequest(userPrompt, systemPrompt) {
                     this.resultText = '処理中...';
+                    this.isError = false;
+
                     try {
-                        const payload = { text: this.inputText };
+                        // APIに送るデータをpayloadとしてまとめる
+                        const payload = { text: prompt };
                         if (context) {
-                            payload.context = context;
+                            payload.context = systemPrompt;
                         }
 
-                        const response = await fetch('/send_api', {
+                        const response = await fetch('/api/recipe', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -57,19 +79,49 @@
                         const data = await response.json();
                         if (response.ok) {
                             this.resultText = data.processed_text;
+                            this.isError = false;
                         } else {
                             this.resultText = `エラー: ${data.error || '不明なエラーが発生しました。'}`;
+                            this.isError = true;
                         }
                     } catch (error) {
                         this.resultText = `エラー: ${error.message}`;
+                        this.isError = true;
                     }
                 },
-                generateRecipe() {
-                    const context = `あなたはプロの料理人です。ユーザーから提供された食材リストを元に、2〜5個の食材を追加して作れる料理のレシピを1つ提案してください。以下のフォーマットで回答してください。
-料理名: 
-追加する食材: 
-手順: `;
-                    this.sendRequest(context);
+                execute() {
+                    if (!this.inputText.trim()) {
+                        this.resultText = 'エラー: 食材を入力してください。';
+                        this.isError = true;
+                        return;
+                    }
+                    this.isLoading = true;
+                    this.firstRequestDone = true;
+                    this.otherSuggestions = []; // 新しい検索なのでリセット
+                    const systemPrompt = "あなたはプロの料理人です。ユーザーから提供された食材リストを元に、作れる料理のレシピを一つ提案してください。その際、リストにある食材に加えて、一般的に家庭にある調味料（醤油、砂糖、塩、油など）と、2〜5個の追加食材を使って構いません。レシピには、料理名、材料リスト（追加した食材も明記）、そして簡単な作り方の手順を含めてください。";
+                    await this.sendRequest(this.inputText, systemPrompt);
+                    this.isLoading = false;
+                },
+                async getOtherSuggestions() {
+                    this.isLoading = true;
+                    const userPrompt = `「${this.inputText}」を使って作れる、今表示している料理以外の料理名を5つ挙げてください。`;
+                    const systemPrompt = "ユーザーに料理名のリストを提示します。余計な説明はつけず、料理名だけを箇条書き（例: `- 料理名`）で出力してください。";
+                    await this.sendRequest(userPrompt, systemPrompt);
+                    
+                    // 結果をパースしてリストにする
+                    if (!this.isError) {
+                        this.otherSuggestions = this.resultText.split('\n').map(s => s.replace(/[-*・ ]/g, '').trim()).filter(s => s);
+                        this.resultText = "他の候補が見つかりました。"; // ユーザーへのメッセージは固定
+                    }
+                    this.isLoading = false;
+                },
+                async getSpecificRecipe(dishName) {
+                    this.isLoading = true;
+                    const userPrompt = `「${this.inputText}」を使って「${dishName}」を作るためのレシピを教えてください。`;
+                    const systemPrompt = "あなたはプロの料理人です。指定された料理のレシピを、料理名、材料リスト、作り方の手順を含めて詳しく教えてください。";
+                    this.otherSuggestions = []; // レシピ表示時に候補リストは非表示にする
+                    await this.sendRequest(userPrompt, systemPrompt);
+                    this.isLoading = false;
                 }
             }
         }).mount('#app');

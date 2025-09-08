@@ -35,9 +35,9 @@ APP_NAME = os.getenv("YOUR_APP_NAME", "FlaskVueApp") # Default if not set
 def index():
     return send_from_directory(app.static_folder, 'index.html')
     
-# URL:/send_api に対するメソッドを定義
-@app.route('/send_api', methods=['POST'])
-def send_api():
+# URL:/api/recipe に対するメソッドを定義
+@app.route('/api/recipe', methods=['POST'])
+def api_recipe():
     if not OPENROUTER_API_KEY:
         app.logger.error("OpenRouter API key not configured.")
         return jsonify({"error": "OpenRouter API key is not configured on the server."}), 500
@@ -50,6 +50,7 @@ def send_api():
             "X-Title": APP_NAME,
         }
     )
+    # 04に入れたよそーま
     
     # POSTリクエストからJSONデータを取得
     data = request.get_json()
@@ -65,12 +66,10 @@ def send_api():
         return jsonify({"error": "Input text cannot be empty"}), 400
     
     # contextがあればsystemプロンプトに設定、なければデフォルト値
-    system_prompt = "140字以内で回答してください。" # デフォルトのシステムプロンプト
-    if 'context' in data and data['context'] and data['context'].strip():
-        system_prompt = data['context'].strip()
-        app.logger.info(f"Using custom system prompt from context: {system_prompt}")
-    else:
-        app.logger.info(f"Using default system prompt: {system_prompt}")
+    # フロントエンドから送られてくるコンテキストをシステムプロンプトとして使用
+    system_prompt = data.get('context', 'あなたは役立つアシスタントです。').strip()
+    if not system_prompt:
+        system_prompt = "あなたは役立つアシスタントです。"
 
     try:
         # OpenRouter APIを呼び出し
@@ -103,3 +102,5 @@ if __name__ == '__main__':
     if not OPENROUTER_API_KEY:
         print("警告: 環境変数 OPENROUTER_API_KEY が設定されていません。API呼び出しは失敗します。")
     app.run(debug=True, host='0.0.0.0', port=5000)
+
+#これでどうだ

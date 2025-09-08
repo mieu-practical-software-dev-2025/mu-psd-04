@@ -50,6 +50,7 @@ def send_api():
             "X-Title": APP_NAME,
         }
     )
+    # 04に入れたよそーま
     
     # POSTリクエストからJSONデータを取得
     data = request.get_json()
@@ -65,7 +66,7 @@ def send_api():
         return jsonify({"error": "Input text cannot be empty"}), 400
     
     # contextがあればsystemプロンプトに設定、なければデフォルト値
-    system_prompt = "140字以内で回答してください。" # デフォルトのシステムプロンプト
+    system_prompt = "あなたはプロの料理人です。ユーザーから提供された食材リストを元に、作れる料理のレシピを一つ提案してください。その際、リストにある食材に加えて、一般的に家庭にある調味料（醤油、砂糖、塩、油など）と、2〜5個の追加食材を使って構いません。レシピには、料理名、材料リスト（追加した食材も明記）、そして簡単な作り方の手順を含めてください。" # デフォルトのシステムプロンプト
     if 'context' in data and data['context'] and data['context'].strip():
         system_prompt = data['context'].strip()
         app.logger.info(f"Using custom system prompt from context: {system_prompt}")
@@ -82,7 +83,7 @@ def send_api():
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": received_text}
             ], # type: ignore
-            model="google/gemma-3-27b-it:free", 
+            model="google/gemma-2-9b-it:free", 
         )
         
         # APIからのレスポンスを取得
@@ -103,3 +104,5 @@ if __name__ == '__main__':
     if not OPENROUTER_API_KEY:
         print("警告: 環境変数 OPENROUTER_API_KEY が設定されていません。API呼び出しは失敗します。")
     app.run(debug=True, host='0.0.0.0', port=5000)
+
+#これでどうだ

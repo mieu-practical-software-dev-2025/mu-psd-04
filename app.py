@@ -35,10 +35,9 @@ APP_NAME = os.getenv("YOUR_APP_NAME", "FlaskVueApp") # Default if not set
 def index():
     return send_from_directory(app.static_folder, 'index.html')
     
-
-# URL:/api/recipe に対するメソッドを定義
-@app.route('/api/recipe', methods=['POST'])
-def api_recipe():
+# URL:/send_api に対するメソッドを定義
+@app.route('/send_api', methods=['POST'])
+def send_api():
     if not OPENROUTER_API_KEY:
         app.logger.error("OpenRouter API key not configured.")
         return jsonify({"error": "OpenRouter API key is not configured on the server."}), 500
@@ -67,10 +66,12 @@ def api_recipe():
         return jsonify({"error": "Input text cannot be empty"}), 400
     
     # contextがあればsystemプロンプトに設定、なければデフォルト値
-    # フロントエンドから送られてくるコンテキストをシステムプロンプトとして使用
-    system_prompt = data.get('context', 'あなたは役立つアシスタントです。').strip()
-    if not system_prompt:
-        system_prompt = "あなたは役立つアシスタントです。"
+    system_prompt = "あなたはプロの料理人です。ユーザーから提供された食材リストを元に、作れる料理のレシピを一つ提案してください。その際、リストにある食材に加えて、一般的に家庭にある調味料（醤油、砂糖、塩、油など）と、2〜5個の追加食材を使って構いません。レシピには、料理名、材料リスト（追加した食材も明記）、そして簡単な作り方の手順を含めてください。" # デフォルトのシステムプロンプト
+    if 'context' in data and data['context'] and data['context'].strip():
+        system_prompt = data['context'].strip()
+        app.logger.info(f"Using custom system prompt from context: {system_prompt}")
+    else:
+        app.logger.info(f"Using default system prompt: {system_prompt}")
 
     try:
         # OpenRouter APIを呼び出し

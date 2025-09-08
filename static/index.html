@@ -3,25 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sample Application</title>
+    <title>冷蔵庫レシピ提案アプリ</title>
     <!-- Vue.jsをCDNから読み込み -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <!-- BootStrapをCDNから読み込み -->
 	<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css">
 </head>
 <body>
-
     <div id="app" class="container">
-        <h2 class="mb-4">サンプルアプリ</h2>
+        <h2 class="mb-4">冷蔵庫レシピ提案アプリ</h2>
 
         <div class="mb-3">
-            <label for="inputText" class="form-label">テキストを入力してください:</label>
-            <textarea id="inputText" class="form-control" rows="5" v-model="inputText" placeholder="ここにテキストを入力..."></textarea>
+            <label for="inputText" class="form-label">冷蔵庫にある食材を入力してください（カンマ区切り）:</label>
+            <textarea id="inputText" class="form-control" rows="3" v-model="inputText" placeholder="例: 豚肉, 玉ねぎ, 卵"></textarea>
         </div>
 
         <div class="mb-3">
-            <button @click="execute" class="btn btn-primary">実行</button>
-            <button @click="execute_kansai" class="btn btn-success ms-2">関西弁で実行</button>
+            <button @click="generateRecipe" class="btn btn-primary">レシピを提案してもらう</button>
         </div>
         
         <h3>結果:</h3>
@@ -66,11 +64,12 @@
                         this.resultText = `エラー: ${error.message}`;
                     }
                 },
-                execute() {
-                    this.sendRequest();
-                },
-                execute_kansai() {
-                    this.sendRequest("あなたは親切な関西人です。ユーザーからの入力に対して、必ず関西弁で、親しみやすく、そして140字以内で回答してください。");
+                generateRecipe() {
+                    const context = `あなたはプロの料理人です。ユーザーから提供された食材リストを元に、2〜5個の食材を追加して作れる料理のレシピを1つ提案してください。以下のフォーマットで回答してください。
+料理名: 
+追加する食材: 
+手順: `;
+                    this.sendRequest(context);
                 }
             }
         }).mount('#app');

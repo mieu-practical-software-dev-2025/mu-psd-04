@@ -35,6 +35,7 @@ APP_NAME = os.getenv("YOUR_APP_NAME", "FlaskVueApp") # Default if not set
 def index():
     return send_from_directory(app.static_folder, 'index.html')
     
+
 # URL:/api/recipe に対するメソッドを定義
 @app.route('/api/recipe', methods=['POST'])
 def api_recipe():

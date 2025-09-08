@@ -21,12 +21,22 @@
 
         <div class="mb-3">
             <button @click="execute" class="btn btn-primary">レシピを考える</button>
-            <button @click="execute_kansai" class="btn btn-success ms-2">関西弁で実行</button>
         </div>
         
-        <h3>結果:</h3>
-        <div class="result-area p-3 border rounded" :class="{ 'alert alert-info': resultText && !resultText.startsWith('エラー:'), 'alert alert-danger': resultText.startsWith('エラー:') }">
-            <pre style="white-space: pre-wrap;">{{ resultText }}</pre>
+        <div v-if="resultText">
+            <h3>結果:</h3>
+            <div class="result-area p-3 border rounded" :class="{ 'alert alert-info': !isError, 'alert alert-danger': isError }">
+                <pre style="white-space: pre-wrap;">{{ resultText }}</pre>
+            </div>
+
+            <!-- 別の料理提案ボタンとリスト -->
+            <div class="mt-3" v-if="!isError && firstRequestDone">
+                <button @click="getOtherSuggestions" class="btn btn-secondary" v-if="!otherSuggestions.length">別の料理を提案</button>
+                <div v-if="otherSuggestions.length" class="mt-2">
+                    <p>こちらの料理はいかがですか？</p>
+                    <button v-for="suggestion in otherSuggestions" :key="suggestion" @click="getSpecificRecipe(suggestion)" class="btn btn-outline-success me-2 mb-2">{{ suggestion }}</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -37,14 +47,20 @@
             data() {
                 return {
                     inputText: '',
-                    resultText: 'ここに結果が表示されます。'
+                    resultText: '', // 初期状態は空にする
+                    isError: false,
+                    firstRequestDone: false, // 最初のレシピ検索が完了したか
+                    otherSuggestions: [], // 他に提案された料理リスト
                 };
             },
             methods: {
-                async sendRequest(context = null) {
+                async sendRequest(prompt, context = null) {
                     this.resultText = '処理中...';
+                    this.isError = false;
+
                     try {
-                        const payload = { text: this.inputText };
+                        // APIに送るデータをpayloadとしてまとめる
+                        const payload = { text: prompt };
                         if (context) {
                             payload.context = context;
                         }
@@ -59,18 +75,41 @@
                         const data = await response.json();
                         if (response.ok) {
                             this.resultText = data.processed_text;
+                            this.isError = false;
                         } else {
                             this.resultText = `エラー: ${data.error || '不明なエラーが発生しました。'}`;
+                            this.isError = true;
                         }
                     } catch (error) {
                         this.resultText = `エラー: ${error.message}`;
+                        this.isError = true;
                     }
                 },
                 execute() {
-                    this.sendRequest();
+                    if (!this.inputText.trim()) {
+                        this.resultText = 'エラー: 食材を入力してください。';
+                        this.isError = true;
+                        return;
+                    }
+                    this.firstRequestDone = true;
+                    this.otherSuggestions = []; // 新しい検索なのでリセット
+                    this.sendRequest(this.inputText);
                 },
-                execute_kansai() {
-                    this.sendRequest("あなたは親切な関西人です。ユーザーからの入力に対して、必ず関西弁で、親しみやすく、そして140字以内で回答してください。");
+                async getOtherSuggestions() {
+                    const prompt = `「${this.inputText}」を使って作れる、今表示している料理以外の料理名を5つ、箇条書きで料理名だけ挙げてください。`;
+                    const context = "ユーザーに料理名のリストを提示します。余計な説明はつけず、料理名だけを箇条書き（例: `- 料理名`）で出力してください。";
+                    await this.sendRequest(prompt, context);
+                    
+                    // 結果をパースしてリストにする
+                    if (!this.isError) {
+                        this.otherSuggestions = this.resultText.split('\n').map(s => s.replace(/[-*・ ]/g, '').trim()).filter(s => s);
+                        this.resultText = "こちらの料理はいかがですか？下から選んでください。";
+                    }
+                },
+                getSpecificRecipe(dishName) {
+                    const prompt = `「${this.inputText}」を使って「${dishName}」を作るためのレシピを教えてください。`;
+                    this.otherSuggestions = []; // レシピ表示時に候補リストは非表示にする
+                    this.sendRequest(prompt);
                 }
             }
         }).mount('#app');

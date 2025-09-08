@@ -3,20 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sample Application</title>
+    <title>冷蔵庫レシピ提案アプリ</title>
     <!-- Vue.jsをCDNから読み込み -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <!-- BootStrapをCDNから読み込み -->
 	<link rel="stylesheet" href="//cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css">
 </head>
 <body>
-
     <div id="app" class="container">
-        <h2 class="mb-4">サンプルアプリ</h2>
+        <h2 class="mb-4">冷蔵庫レシピ提案アプリ</h2>
 
         <div class="mb-3">
-            <label for="inputText" class="form-label">テキストを入力してください:</label>
-            <textarea id="inputText" class="form-control" rows="5" v-model="inputText" placeholder="ここにテキストを入力..."></textarea>
+            <label for="inputText" class="form-label">冷蔵庫にある食材をカンマ区切りで入力してください:</label>
+            <textarea id="inputText" class="form-control" rows="3" v-model="inputText" placeholder="例: 豚肉, 玉ねぎ, じゃがいも, にんじん"></textarea>
         </div>
 
         <div class="mb-3">
@@ -37,7 +36,7 @@
             data() {
                 return {
                     inputText: '',
-                    resultText: 'ここに結果が表示されます。'
+                    resultText: 'ここにAIが提案するレシピが表示されます。'
                 };
             },
             methods: {
@@ -67,10 +66,10 @@
                     }
                 },
                 execute() {
-                    this.sendRequest();
+                    this.sendRequest("あなたはプロの料理人です。ユーザーから提供された食材リストを使って、作れる料理のレシピを1つ提案してください。レシピには以下の要素を含めてください:\n\n- 料理名\n- 材料リスト\n- 手順\n\nもし食材が足りない場合は、追加で必要な食材も提案してください。");
                 },
                 execute_kansai() {
-                    this.sendRequest("あなたは親切な関西人です。ユーザーからの入力に対して、必ず関西弁で、親しみやすく、そして140字以内で回答してください。");
+                    this.sendRequest("あんたは大阪のオカンや。ユーザーが教えた食材で、なんかええ感じのレシピを考えたって。料理名と材料、作り方を元気な関西弁で頼むわな。足りひんもんがあったら、それも言うたってや。");
                 }
             }
         }).mount('#app');

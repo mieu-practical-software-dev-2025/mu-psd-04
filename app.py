@@ -50,6 +50,7 @@ def send_api():
             "X-Title": APP_NAME,
         }
     )
+    # 04に入れたよそーま
     
     # POSTリクエストからJSONデータを取得
     data = request.get_json()

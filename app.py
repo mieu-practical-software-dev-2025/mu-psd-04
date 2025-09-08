@@ -105,4 +105,3 @@ if __name__ == '__main__':
         print("警告: 環境変数 OPENROUTER_API_KEY が設定されていません。API呼び出しは失敗します。")
     app.run(debug=True, host='0.0.0.0', port=5000)
 
-    #これみえるかな

@@ -65,20 +65,22 @@
                 </ul>
             </div>
         </div>
+
     </div>
 
     <script>
         const { createApp } = Vue;
 
-        const app = createApp({
+        createApp({
             data() {
                 return {
+                    // ゲームの状態を管理する変数
                     history: [],
-                    currentQuestion: '頭の中に誰か（実在・架空問わず）を思い浮かべてください。最初の質問を準備しています...',
+                    currentQuestion: '',
                     finalAnswer: '',
-                    isLoading: true,
+                    isLoading: false,
                     isFinished: false,
-                    isGameStarted: false, // ゲームが開始されたかどうかを管理するフラグ
+                    isGameStarted: false,
                     error: '',
                 };
             },
@@ -135,8 +137,7 @@
                 }
             },
             // mountedフックは不要になるため削除
-        });
-        app.mount('#app');
+        }).mount('#app');
     </script>
 </body>
 </html>

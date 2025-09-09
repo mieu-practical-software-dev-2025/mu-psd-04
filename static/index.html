@@ -12,69 +12,131 @@
 <body>
 
     <div id="app" class="container">
-        <h2 class="mb-4">サンプルアプリaa
-        </h2>
+        <h2 class="my-4 text-center">アキネーター風アプリ</h2>
 
-        <div class="mb-3">
-            <label for="inputText" class="form-label">テキストを入力してください:</label>
-            <textarea id="inputText" class="form-control" rows="5" v-model="inputText" placeholder="ここにテキストを入力..."></textarea>
+        <!-- スタート画面 (isGameStartedがfalseの場合に表示) -->
+        <div v-if="!isGameStarted" class="text-center mt-5">
+            <div class="card shadow-sm p-4">
+                <div class="card-body">
+                    <h3 class="card-title">魔人の質問</h3>
+                    <p class="lead my-4">頭の中に、実在または架空の人物・キャラクターを思い浮かべてください。<br>いくつかの質問に答えるだけで、私が当ててみせましょう。</p>
+                    <button @click="startGame" class="btn btn-primary btn-lg">ゲームを開始する</button>
+                </div>
+            </div>
         </div>
 
-        <div class="mb-3">
-            <button @click="execute" class="btn btn-primary">実行</button>
-            <button @click="execute_kansai" class="btn btn-success ms-2">関西弁で実行</button>
-        </div>
-        
-        <h3>結果:</h3>
-        <div class="result-area p-3 border rounded" :class="{ 'alert alert-info': resultText && !resultText.startsWith('エラー:'), 'alert alert-danger': resultText.startsWith('エラー:') }">
-            <pre style="white-space: pre-wrap;">{{ resultText }}</pre>
+        <!-- ゲーム画面 (isGameStartedがtrueの場合に表示) -->
+        <div v-else>
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    質問 {{ questionCount }}
+                </div>
+                <div class="card-body text-center" style="min-height: 250px;">
+                    <div v-if="!isFinished">
+                        <div style="min-height: 120px;">
+                            <p class="lead my-4" style="min-height: 50px;">{{ currentQuestion }}</p>
+                            <div v-if="isLoading" class="d-flex justify-content-center my-3">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">考え中...</span>
+                                </div>
+                            </div>
+                            <div v-else>
+                                <button @click="answer('はい')" class="btn btn-primary btn-lg m-2 px-4">はい</button>
+                                <button @click="answer('いいえ')" class="btn btn-danger btn-lg m-2 px-4">いいえ</button>
+                                <button @click="answer('わからない')" class="btn btn-secondary btn-lg m-2">わからない</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-else>
+                        <p class="lead my-4">AIの答えは...</p>
+                        <h3 class="card-title mb-4">{{ finalAnswer }}</h3>
+                        <button @click="resetGame" class="btn btn-success btn-lg">もう一度遊ぶ</button>
+                    </div>
+                     <div v-if="error" class="alert alert-danger mt-4">{{ error }}</div>
+                </div>
+            </div>
+
+            <div class="mt-4" v-if="history.length > 0">
+                <h5>回答履歴</h5>
+                <ul class="list-group">
+                    <li v-for="(item, index) in history" :key="index" class="list-group-item list-group-item-light">
+                        <small><strong>Q:</strong> {{ item.q }} <br> <strong>A:</strong> {{ item.a }}</small>
+                    </li>
+                </ul>
+            </div>
         </div>
     </div>
 
     <script>
         const { createApp } = Vue;
 
-        createApp({
+        const app = createApp({
             data() {
                 return {
-                    inputText: '',
-                    resultText: 'ここに結果が表示されます。'
+                    history: [],
+                    currentQuestion: '頭の中に誰か（実在・架空問わず）を思い浮かべてください。最初の質問を準備しています...',
+                    finalAnswer: '',
+                    isLoading: true,
+                    isFinished: false,
+                    isGameStarted: false, // ゲームが開始されたかどうかを管理するフラグ
+                    error: '',
                 };
             },
+            computed: {
+                questionCount() {
+                    return this.history.length + 1;
+                }
+            },
             methods: {
-                async sendRequest(context = null) {
-                    this.resultText = '処理中...';
-                    try {
-                        const payload = { text: this.inputText };
-                        if (context) {
-                            payload.context = context;
-                        }
+                async fetchNext(userAnswer = null) {
+                    this.isLoading = true;
+                    this.error = '';
 
-                        const response = await fetch('/send_api', {
+                    if (userAnswer) {
+                        this.history.push({ q: this.currentQuestion, a: userAnswer });
+                    }
+
+                    try {
+                        const response = await fetch('/akinator_api', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                             },
-                            body: JSON.stringify(payload)
+                            body: JSON.stringify({ history: this.history })
                         });
                         const data = await response.json();
+
                         if (response.ok) {
-                            this.resultText = data.processed_text;
+                            if (data.type === 'question') {
+                                this.currentQuestion = data.text;
+                            } else if (data.type === 'answer') {
+                                this.finalAnswer = data.text;
+                                this.isFinished = true;
+                            }
                         } else {
-                            this.resultText = `エラー: ${data.error || '不明なエラーが発生しました。'}`;
+                            this.error = `エラー: ${data.error || '不明なエラー'}`;
                         }
                     } catch (error) {
-                        this.resultText = `エラー: ${error.message}`;
+                        this.error = `通信エラー: ${error.message}`;
+                    } finally {
+                        this.isLoading = false;
                     }
                 },
-                execute() {
-                    this.sendRequest();
+                answer(userAnswer) {
+                    this.fetchNext(userAnswer);
                 },
-                execute_kansai() {
-                    this.sendRequest("あなたは親切な関西人です。ユーザーからの入力に対して、必ず関西弁で、親しみやすく、そして140字以内で回答してください。");
+                startGame() {
+                    this.isGameStarted = true;
+                    this.fetchNext(); // ゲーム開始時に最初の質問を取得
+                },
+                resetGame() {
+                    // isGameStarted以外を初期化してスタート画面に戻す
+                    Object.assign(this.$data, this.$options.data.apply(this));
                 }
-            }
-        }).mount('#app');
+            },
+            // mountedフックは不要になるため削除
+        });
+        app.mount('#app');
     </script>
 </body>
 </html>

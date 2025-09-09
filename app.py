@@ -1,5 +1,6 @@
 import os
 from flask import Flask, request, jsonify, send_from_directory
+import json
 from openai import OpenAI # Import the OpenAI library
 from dotenv import load_dotenv
 
@@ -10,6 +11,7 @@ load_dotenv()
 # static_folderのデフォルトは 'static' なので、
 # このファイルと同じ階層に 'static' フォルダがあれば自動的にそこが使われます。
 app = Flask(__name__)
+
 
 # 開発モード時に静的ファイルのキャッシュを無効にする
 if app.debug:
@@ -34,6 +36,74 @@ APP_NAME = os.getenv("YOUR_APP_NAME", "FlaskVueApp") # Default if not set
 @app.route('/')
 def index():
     return send_from_directory(app.static_folder, 'index.html')
+
+@app.route('/akinator_api', methods=['POST'])
+def akinator_api():
+    if not OPENROUTER_API_KEY:
+        app.logger.error("OpenRouter API key not configured.")
+        return jsonify({"error": "OpenRouter API key is not configured on the server."}), 500
+
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=OPENROUTER_API_KEY,
+        default_headers={
+            "HTTP-Referer": SITE_URL,
+            "X-Title": APP_NAME,
+        }
+    )
+
+    data = request.get_json()
+    history = data.get('history', [])
+
+    # プロンプトを作成
+    history_text = "\n".join([f"Q: {item['q']}\nA: {item['a']}" for item in history])
+    
+    # ユーザーの回答選択肢を3つに絞る
+    user_choices = "「はい」「いいえ」「わからない」"
+
+    system_prompt = f"""
+あなたは有名な「アキネーター」のように、ユーザーが思い浮かべている人物やキャラクターを当てる専門家です。
+以下のルールに厳密に従って、JSON形式で応答してください。
+
+ルール:
+1. 出力は必ず **単一のJSONオブジェクトのみ** とすること。
+2. JSONは以下のどちらかの形式にすること:
+   - 質問: {{"type": "question", "text": "ここに質問文"}}
+   - 答え: {{"type": "answer", "text": "あなたが思い浮かべているのは「〇〇」ですね！"}}
+3. 履歴が空なら、必ず最初の質問を生成すること。
+   例: "そのキャラクターは人間ですか？" など。
+4. 絶対に説明や解説を出力せず、JSON以外は出さないこと。
+
+これまでの対話履歴:
+{history_text}
+"""
+
+    try:
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": "次の応答をJSON形式で生成してください。"}
+            ],
+            model="openai/gpt-4o-mini", # 応答性能が良いモデルを推奨
+            response_format={"type": "json_object"}, # JSONモードを有効化
+        )
+
+        if chat_completion.choices and chat_completion.choices[0].message and chat_completion.choices[0].message.content:
+            response_text = chat_completion.choices[0].message.content
+            app.logger.info(f"AI Response: {response_text}")
+            try:
+                response_json = json.loads(response_text)
+                return jsonify(response_json)
+            except json.JSONDecodeError:
+                app.logger.error(f"AI response is not a valid JSON: {response_text}")
+                return jsonify({"error": "AIの応答が不正な形式でした。AIがルール通りに応答しなかった可能性があります。"}), 500
+        else:
+            app.logger.error("AI response was empty.")
+            return jsonify({"error": "AIから有効な応答がありませんでした。"}), 500
+
+    except Exception as e:
+        app.logger.error(f"API call failed: {e}")
+        return jsonify({"error": f"AIサービスとの通信中にエラーが発生しました。"}), 500
     
 # URL:/send_api に対するメソッドを定義
 @app.route('/send_api', methods=['POST'])

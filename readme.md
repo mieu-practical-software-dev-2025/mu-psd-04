@@ -1,12 +1,12 @@
-# 生成AI活用サンプルアプリ
+# アキネーター風アプリ
 
 # 概要
 
-このアプリは Python とVue.jsを用いて作られた簡易的な生成AI活用アプリです。
+このアプリケーションは、AIがユーザーの思い浮かべた人物やキャラクターを当てる「アキネーター風」のWebゲームです。
 
 - フロントエンドに、Vue.js CDN版を用いています。
 
-- バックエンドに、Python,FlaskとOpenAI APIを用いて、OpenRouter APIを叩いています。
+- バックエンドに、Python (Flask) を用い、OpenRouter経由で大規模言語モデル(LLM)のAPIを利用しています。
 
 # 開発ツールインストール
 
@@ -36,7 +36,9 @@ winget install --id Microsoft.VisualStudioCode -e --source winget
 
   以下のコマンドでPythonの利用ライブラリをインストールします。
 
-  ``` pip install -r requrements.txt ```
+  ```sh
+  pip install -r requirements.txt
+  ```
 
 # 実行方法
 
@@ -44,19 +46,19 @@ winget install --id Microsoft.VisualStudioCode -e --source winget
 
 - 以下のコマンドでサーバを起動します。
 
-  ``` python app.py ```
+  ```sh
+  python app.py
+  ```
 
 - ブラウザで以下のURLにアクセスしてみてください。
 
   ``` http://localhost:5000 ```
 
-# 開発の参考資料
-
-- vscodeのGemini Code Assist を起動して修正を依頼すると、コードを修正したり解説してくれます。
-
-- フロントエンド担当者は、html/JavaScriptを追加／修正して画面を構築してください。
-
-- バックエンド担当者は、app.py上にURLとAPIを作成してください。
+# アプリケーションの構成
+- **`app.py`**: バックエンドのFlaskサーバーです。AIとの通信を仲介するAPIを提供します。
+- **`static/index.html`**: フロントエンドのVue.jsアプリケーションです。ゲームのUIとロジックを管理します。
+- **`.env`**: APIキーなどの機密情報を格納するファイルです。
+- **`design-document.md`**: アプリケーションの仕様書です。
 
 # 参考リンク
 
@@ -75,4 +77,3 @@ winget install --id Microsoft.VisualStudioCode -e --source winget
 - [OpenAI API](https://github.com/openai/openai-python)
 
   - Pythonから、OpenAI APIを呼び出すライブラリ
-

@@ -51,9 +51,22 @@
                         </div>
                     </div>
                     <div v-else>
-                        <p class="lead my-4">AIの答えは...</p>
-                        <h3 class="card-title mb-4">{{ finalAnswer }}</h3>
-                        <button @click="resetGame" class="btn btn-success btn-lg">もう一度遊ぶ</button>
+                        <p class="lead my-4">あなたの思い浮かべているのは...</p>
+                        <h3 class="card-title mb-4">{{ finalAnswer.replace('あなたの思い浮かべているのは', '').replace('ですね！', '') }}</h3>
+                        
+                        <div v-if="userFeedback === null">
+                            <p>この答えは合っていますか？</p>
+                            <button @click="handleFeedback(true)" class="btn btn-success btn-lg m-2">正解！</button>
+                            <button @click="handleFeedback(false)" class="btn btn-danger btn-lg m-2">不正解...</button>
+                        </div>
+                        <div v-else-if="userFeedback === true" class="mt-4">
+                            <button @click="resetGame" class="btn btn-primary btn-lg">もう一度遊ぶ</button>
+                        </div>
+                        <div v-else-if="userFeedback === false" class="mt-4">
+                            <p>ゲームを続けますか？</p>
+                            <button @click="continueGame" class="btn btn-info btn-lg m-2">質問を続ける</button>
+                            <button @click="resetGame" class="btn btn-secondary btn-lg m-2">最初から</button>
+                        </div>
                     </div>
                      <div v-if="error" class="alert alert-danger mt-4">{{ error }}</div>
                 </div>
@@ -85,6 +98,7 @@
                     isFinished: false,
                     isGameStarted: false,
                     error: '',
+                    userFeedback: null, // null, true (correct), or false (incorrect)
                 };
             },
             computed: {
@@ -117,6 +131,7 @@
                             } else if (data.type === 'answer') {
                                 this.finalAnswer = data.text;
                                 this.isFinished = true;
+                                this.userFeedback = null; // Reset feedback state
                             }
                         } else {
                             this.error = `エラー: ${data.error || '不明なエラー'}`;
@@ -169,6 +184,17 @@
                 resetGame() {
                     // isGameStarted以外を初期化してスタート画面に戻す
                     Object.assign(this.$data, this.$options.data.apply(this));
+                },
+                handleFeedback(isCorrect) {
+                    this.userFeedback = isCorrect;
+                },
+                continueGame() {
+                    // AIの答えが間違いだったことを履歴に追加
+                    const failedAnswer = this.finalAnswer.replace('あなたの思い浮かべているのは', '').replace('ですね！', '');
+                    this.history.push({ q: `それは「${failedAnswer}」ですか？`, a: 'いいえ' });
+                    this.isFinished = false;
+                    this.finalAnswer = '';
+                    this.fetchNext(); // 新しい質問を取得
                 }
             },
             // mountedフックは不要になるため削除

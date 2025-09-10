@@ -41,14 +41,17 @@
                                 </div>
                             </div>
                             <div v-else>
-                                <div class="mb-2">
-                                    <button @click="answer('はい')" class="btn btn-primary btn-lg m-2 px-4">はい</button>
-                                    <button @click="answer('いいえ')" class="btn btn-danger btn-lg m-2 px-4">いいえ</button>
-                                    <button @click="answer('わからない')" class="btn btn-secondary btn-lg m-2">わからない</button>
-                                </div>
-                                <div>
-                                    <button @click="answer('たぶんそう')" class="btn btn-info m-2">たぶんそう</button>
-                                    <button @click="answer('部分的に違う')" class="btn btn-warning m-2">部分的に違う</button>
+                                <!-- 回答ボタンを囲む枠 -->
+                                <div class="border rounded p-3 my-3">
+                                    <div class="mb-2">
+                                        <button @click="answer('はい')" class="btn btn-primary btn-lg m-2 px-4">はい</button>
+                                        <button @click="answer('いいえ')" class="btn btn-danger btn-lg m-2 px-4">いいえ</button>
+                                        <button @click="answer('わからない')" class="btn btn-secondary btn-lg m-2">わからない</button>
+                                    </div>
+                                    <div>
+                                        <button @click="answer('たぶんそう')" class="btn btn-info m-2">たぶんそう</button>
+                                        <button @click="answer('部分的に違う')" class="btn btn-warning m-2">部分的に違う</button>
+                                    </div>
                                 </div>
                             </div>
                             <button v-if="history.length > 0 && !isLoading" @click="undo" class="btn btn-link text-secondary mt-3">一つ前の質問に戻る</button>

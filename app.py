@@ -61,7 +61,7 @@ def akinator_api():
     history_text = "\n".join([f"Q: {item['q']}\nA: {item['a']}" for item in history])
     
     # ユーザーの回答選択肢を3つに絞る
-    user_choices = "「はい」「いいえ」「わからない」"
+    user_choices = "「はい」「いいえ」「わからない」「たぶんそう」「部分的に違う」"
 
     system_prompt = f"""
 あなたは有名な「アキネーター」のように、ユーザーが思い浮かべている人物やキャラクターを当てる専門家です。
@@ -69,7 +69,7 @@ def akinator_api():
 ### ルール
 1.  **質問**: 履歴を分析し、対象を絞り込むための最も効果的な質問を生成します。履歴が空なら一般的な質問から始めます。（例: 「そのキャラクターは人間ですか？」）
 2.  **最終回答**: 以下のいずれかの条件を満たした場合、質問ではなく最終的な答えを提示してください。
-    - 対象が98%以上の確率で特定できたと確信したとき。
+    - 対象が99%以上の確率で特定できたと確信したとき。
     - **質問回数が30回に達したとき。** その時点で最も可能性が高いと思われる答えを提示してください。
 3.  **出力形式**: 応答は必ず以下のいずれかのJSON形式で出力してください。JSON以外のテキストは絶対に出力しないでください。
     - 質問の場合: `{{"type": "question", "text": "ここに質問文"}}`
@@ -106,6 +106,63 @@ def akinator_api():
         app.logger.error(f"API call failed: {e}")
         return jsonify({"error": f"AIサービスとの通信中にエラーが発生しました。"}), 500
     
+@app.route('/undo_api', methods=['POST'])
+def undo_api():
+    if not OPENROUTER_API_KEY:
+        app.logger.error("OpenRouter API key not configured.")
+        return jsonify({"error": "OpenRouter API key is not configured on the server."}), 500
+
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=OPENROUTER_API_KEY,
+        default_headers={
+            "HTTP-Referer": SITE_URL,
+            "X-Title": APP_NAME,
+        }
+    )
+
+    data = request.get_json()
+    history = data.get('history', [])
+
+    if not history:
+        return jsonify({"error": "履歴がないため、元に戻せません。"}), 400
+
+    # 履歴の最後の項目を削除
+    history.pop()
+
+    # 1つ前の状態の履歴から、再度質問を生成させる
+    history_text = "\n".join([f"Q: {item['q']}\nA: {item['a']}" for item in history])
+    user_choices = "「はい」「いいえ」「わからない」「たぶんそう」「部分的に違う」"
+
+    system_prompt = f"""
+あなたは「アキネーター」です。ユーザーが一つ前の状態に戻りたがっています。
+以下の対話履歴を元に、**もう一度同じ質問を生成してください**。
+絶対に新しい質問を考えてはいけません。
+
+### ルール
+1.  応答は `{{"type": "question", "text": "ここに質問文"}}` のJSON形式で出力してください。
+2.  JSON以外のテキストは絶対に出力しないでください。
+
+これまでの対話履歴:
+{history_text}
+"""
+
+    try:
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": "この履歴の次に続くべき質問を、もう一度生成してください。"}
+            ],
+            model="openai/gpt-4o-mini",
+            response_format={"type": "json_object"},
+        )
+        response_text = chat_completion.choices[0].message.content
+        response_json = json.loads(response_text)
+        return jsonify(response_json)
+
+    except Exception as e:
+        app.logger.error(f"Undo API call failed: {e}")
+        return jsonify({"error": "AIサービスとの通信中にエラーが発生しました。"}), 500
 
 # URL:/send_api に対するメソッドを定義
 @app.route('/send_api', methods=['POST'])

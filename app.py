@@ -64,23 +64,25 @@ def akinator_api():
     user_choices = "「はい」「いいえ」「わからない」「たぶんそう」「部分的に違う」"
 
     system_prompt = f"""
-あなたは、ユーザーが思い浮かべている人物やキャラクターを当てるゲーム「アキネーター」の魔人です。
+あなたは、ユーザーが思い浮かべている人物やキャラクターを当てるゲーム「アキネーター」の魔人です。あなたには完璧な記憶力があり、過去の対話で得た情報を絶対に忘れません。
 以下の思考プロセスとルールに厳密に従って、最適な応答をJSON形式で生成してください。
 
 ### 思考プロセス
-1.  **候補のリストアップ**: これまでの対話履歴に基づき、考えられる候補を複数（3〜5つ）リストアップします。（この思考は出力に含めないでください）
-2.  **効果的な質問の考案**: リストアップした候補を最も効率的に絞り込める、最適な質問を一つ考えます。
-3.  **最終回答の判断**: 候補が1つに絞り込めた、または十分な確信が得られたと判断した場合、質問ではなく最終回答を生成します。
+1.  **現状分析**: 過去の全対話履歴をレビューし、確定した特徴（例：男性、コンビ芸人、九州出身）と否定された特徴（例：NSC出身ではない、コンビ名に漢字・英語・数字は含まない）を箇条書きで整理します。
+2.  **仮説立案**: 分析結果に基づき、考えられる候補を複数（3〜5つ）リストアップします。
+3.  **思考**:
+    - 候補を最も効率的に区別できる質問は何か？（例：「コンビ名が2文字か3文字か」を個別に聞くのではなく、「コンビ名は食べ物に関係しますか？」と聞けば、より多くの候補を一度に絞り込めるかもしれない）
+    - この質問は過去の質問と重複していないか？堂々巡りになっていないか？
+    - 「いいえ」や「わからない」が連続している場合、現在の仮説（例：出身地で絞る）が有効でないと判断し、全く別の角度（例：芸風、見た目の特徴、趣味）からの質問に切り替える。
+4.  **結論**: 上記の思考に基づき、生成する質問または最終回答を決定します。
+5.  **最終回答の判断**: 候補が1つに絞り込めたと99%確信した場合、または質問回数が25回に達した場合にのみ、最終回答を生成します。
 
 ### ルール
 1.  **質問**:
-    - 質問は、必ずユーザーが「はい」「いいえ」「わからない」「たぶんそう」「部分的に違う」の5択で答えられる形式にしてください。
-    - 「名前を教えてください」のような直接的な質問や、「〇〇ですか？」という単なる名前当ての質問は禁止です。対象を絞り込むための特徴に関する質問をしてください。
-    - 質問文に「〇〇」のような伏せ字は使わず、常に完全な文章で質問してください。
-    - **もしユーザーの「いいえ」という回答が3回以上連続した場合、現在の推測が間違っている可能性が高いです。その際は、一度視野を広げ、より抽象的または異なる角度からの質問（例：「その人物は俳優としても活動していますか？」）をしてください。**
+    - **禁止事項**: 過去に尋ねた質問や、そこから導かれる自明な質問（例：「コンビ名に漢字は入っていますか？」→いいえ の後に「コンビ名はひらがなですか？」と聞くのではなく、「コンビ名は全てひらがなですか？」と聞くなど）を繰り返すことを固く禁じます。
+    - 上記の思考プロセスと禁止事項に従い、質の高い質問を生成してください。
 2.  **最終回答**:
     - 最終回答は、必ず具体的な人物名やキャラクター名（例：「大谷翔平」）にしてください。「野球選手」のような曖昧なカテゴリ名は禁止です。
-    - **質問回数が25回に達したら、それ以上の質問はせず、その時点で最も可能性が高いと思われる最終回答を必ず生成してください。**
 3.  **出力形式**:
     - 応答は、必ず以下のJSON形式のいずれかとし、JSON以外のテキストは絶対に出力しないでください。
     - 質問の場合: `{{"type": "question", "text": "ここに質問文"}}`
@@ -174,123 +176,8 @@ def undo_api():
         app.logger.error(f"Undo API call failed: {e}")
         return jsonify({"error": "AIサービスとの通信中にエラーが発生しました。"}), 500
 
-# URL:/send_api に対するメソッドを定義
-@app.route('/send_api', methods=['POST'])
-def send_api():
-    if not OPENROUTER_API_KEY:
-        app.logger.error("OpenRouter API key not configured.")
-        return jsonify({"error": "OpenRouter API key is not configured on the server."}), 500
-
-    client = OpenAI(
-        base_url="https://openrouter.ai/api/v1",
-        api_key=OPENROUTER_API_KEY,
-        default_headers={ # Recommended by OpenRouter
-            "HTTP-Referer": SITE_URL,
-            "X-Title": APP_NAME,
-        }
-    )
-    
-
-    # POSTリクエストからJSONデータを取得
-    data = request.get_json()
-
-    # 'text'フィールドがリクエストのJSONボディに存在するか確認
-    if not data or 'text' not in data:
-        app.logger.error("Request JSON is missing or does not contain 'text' field.")
-        return jsonify({"error": "Missing 'text' in request body"}), 400
-
-    received_text = data['text']
-    if not received_text.strip(): # 空文字列や空白のみの文字列でないか確認
-        app.logger.error("Received text is empty or whitespace.")
-        return jsonify({"error": "Input text cannot be empty"}), 400
-    
-
-    # contextがあればsystemプロンプトに設定、なければデフォルト値
-    system_prompt = "140字以内で回答してください。" # デフォルトのシステムプロンプト
-    if 'context' in data and data['context'] and data['context'].strip():
-        system_prompt = data['context'].strip()
-        app.logger.info(f"Using custom system prompt from context: {system_prompt}")
-    else:
-        app.logger.info(f"Using default system prompt: {system_prompt}")
-
-    try:
-        # OpenRouter APIを呼び出し
-        # モデル名はOpenRouterで利用可能なモデルを指定してください。
-        # 例: "mistralai/mistral-7b-instruct", "google/gemini-pro", "openai/gpt-3.5-turbo"
-        # 詳細はOpenRouterのドキュメントを参照してください。
-        chat_completion = client.chat.completions.create(
-            messages=[ # type: ignore
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": received_text}
-            ], # type: ignore
-            model="openai/gpt-3.5-turbo", 
-        ) # type: ignore
-        
-
-
-        # APIからのレスポンスを取得
-        if chat_completion.choices and chat_completion.choices[0].message:
-            processed_text = chat_completion.choices[0].message.content
-        else:
-            processed_text = "AIから有効な応答がありませんでした。"
-            
-
-        return jsonify({"message": "AIによってデータが処理されました。", "processed_text": processed_text})
-
-    except Exception as e:
-        app.logger.error(f"OpenRouter API call failed: {e}")
-        # クライアントには具体的なエラー詳細を返しすぎないように注意
-        return jsonify({"error": f"AIサービスとの通信中にエラーが発生しました。"}), 500
-
 # スクリプトが直接実行された場合にのみ開発サーバーを起動
 if __name__ == '__main__':
     if not OPENROUTER_API_KEY:
         print("警告: 環境変数 OPENROUTER_API_KEY が設定されていません。API呼び出しは失敗します。")
     app.run(debug=True, host='0.0.0.0', port=5000)
-
-
-@app.route('/get_question', methods=['GET'])
-def get_question():
-    # ここに質問を返すロジックを実装します
-    # 例えば、質問のリストからランダムに選択するか、
-    # 以前の回答に基づいて次の質問を選択します
-    question = "好きな色は何ですか？"  # これはサンプルです
-    return jsonify({"question": question})
-
-
-@app.route('/submit_answer', methods=['POST'])
-def submit_answer():
-    data = request.get_json()
-    if not data or 'answer' not in data or 'question' not in data:
-        return jsonify({"error": "Missing 'answer' or 'question' in request body"}), 400
-
-    answer = data['answer']
-    question = data['question']
-
-    # AIに質問を送信して次の質問を取得するか、
-    # 推測を行うロジックをここに実装します
-    try:
-        client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=OPENROUTER_API_KEY,
-            default_headers={  # Recommended by OpenRouter
-                "HTTP-Referer": SITE_URL,
-                "X-Title": APP_NAME,
-            }
-        )
-
-        chat_completion = client.chat.completions.create(
-            model="google/gemma-3-27b-it:free",
-            messages=[
-                {"role": "system", "content": "あなたはアキネーターです。質問に答えてください。"},
-                {"role": "user", "content": f"質問: {question}, 回答: {answer}"}
-            ]
-        )  # type: ignore
-
-        ai_response = chat_completion.choices[0].message.content if chat_completion.choices else "回答が得られませんでした。"
-
-        return jsonify({"response": ai_response})
-
-    except Exception as e:
-        app.logger.error(f"OpenRouter API call failed: {e}")
-        return jsonify({"error": "AIサービスとの通信中にエラーが発生しました。"}), 500

@@ -1,10 +1,11 @@
+# --- ライブラリのインポート ---
 import os
 from flask import Flask, request, jsonify, send_from_directory
 import json
-from openai import OpenAI # Import the OpenAI library
 from dotenv import load_dotenv
 from openai import OpenAI
 
+# --- 初期設定 ---
 # .envファイルから環境変数を読み込む
 load_dotenv()
 
@@ -13,7 +14,7 @@ load_dotenv()
 # このファイルと同じ階層に 'static' フォルダがあれば自動的にそこが使われます。
 app = Flask(__name__)
 
-
+# --- 開発用の設定 ---
 # 開発モード時に静的ファイルのキャッシュを無効にする
 if app.debug:
     @app.after_request
@@ -26,25 +27,32 @@ if app.debug:
 
         return response
 
-
+# --- 環境変数の読み込み ---
 # OpenRouter APIキーと関連情報を環境変数から取得
 # このキーはサーバーサイドで安全に管理してください
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 SITE_URL = os.getenv("YOUR_SITE_URL", "http://localhost:5000") # Default if not set
 APP_NAME = os.getenv("YOUR_APP_NAME", "FlaskVueApp") # Default if not set
 
+# --- ルーティング定義 ---
+
 # URL:/ に対して、static/index.htmlを表示して
-    # クライアントサイドのVue.jsアプリケーションをホストする
+# クライアントサイドのVue.jsアプリケーションをホストする
 @app.route('/')
 def index():
+    app.logger.info("Serving index.html")
     return send_from_directory(app.static_folder, 'index.html')
 
+# アキネーターの質問・回答を生成するAPIエンドポイント
 @app.route('/akinator_api', methods=['POST'])
 def akinator_api():
+    app.logger.info("akinator_api: a new request received.")
+
+    # APIキーが設定されているかチェック
     if not OPENROUTER_API_KEY:
         app.logger.error("OpenRouter API key not configured.")
         return jsonify({"error": "OpenRouter API key is not configured on the server."}), 500
-
+    # OpenRouter APIクライアントを初期化
     client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=OPENROUTER_API_KEY,
@@ -54,15 +62,17 @@ def akinator_api():
         }
     )
 
+    # フロントエンドから送信されたJSONデータを取得
     data = request.get_json()
     history = data.get('history', [])
 
-    # プロンプトを作成
+    # これまでの対話履歴をテキスト形式に変換
     history_text = "\n".join([f"Q: {item['q']}\nA: {item['a']}" for item in history])
     
-    # ユーザーの回答選択肢を3つに絞る
+    # ユーザーが選択できる回答の選択肢
     user_choices = "「はい」「いいえ」「わからない」「たぶんそう」「部分的に違う」"
 
+    # AIに与える指示（システムプロンプト）を定義
     system_prompt = f"""
 あなたは、ユーザーが思い浮かべている人物やキャラクターを当てるゲーム「アキネーター」の魔人です。あなたには完璧な記憶力があり、過去の対話で得た情報を絶対に忘れません。
 以下の思考プロセスとルールに厳密に従って、最適な応答をJSON形式で生成してください。
@@ -91,6 +101,7 @@ def akinator_api():
 {history_text}
 """
 
+    # OpenRouter APIへのリクエストを実行
     try:
         chat_completion = client.chat.completions.create(
             messages=[
@@ -101,30 +112,42 @@ def akinator_api():
             response_format={"type": "json_object"}, # JSONモードを有効化
         )
 
+        # AIからの応答をチェック
         if chat_completion.choices and chat_completion.choices[0].message and chat_completion.choices[0].message.content:
             response_text = chat_completion.choices[0].message.content
             app.logger.info(f"AI Response: {response_text}")
+            app.logger.info("akinator_api: request processed successfully.")
+            # AIの応答が正しいJSON形式かチェック
             try:
                 response_json = json.loads(response_text)
                 return jsonify(response_json)
+            # JSONデコードエラーの処理
             except json.JSONDecodeError:
                 app.logger.error(f"AI response is not a valid JSON: {response_text}")
+                app.logger.info("akinator_api: request failed due to JSON decode error.")
                 return jsonify({"error": "AIの応答が不正な形式でした。AIがルール通りに応答しなかった可能性があります。"}), 500
+        # AIから空の応答が返ってきた場合の処理
         else:
             app.logger.error("AI response was empty.")
+            app.logger.info("akinator_api: request failed due to empty AI response.")
             return jsonify({"error": "AIから有効な応答がありませんでした。"}), 500
 
     except Exception as e:
         app.logger.error(f"API call failed: {e}")
         return jsonify({"error": f"AIサービスとの通信中にエラーが発生しました。"}), 500
     
+# 一つ前の質問に戻るためのAPIエンドポイント
 @app.route('/undo_api', methods=['POST'])
 def undo_api():
+    app.logger.info("undo_api: a new request received.")
+
+    # APIキーが設定されているかチェック
     if not OPENROUTER_API_KEY:
         app.logger.error("OpenRouter API key not configured.")
         return jsonify({"error": "OpenRouter API key is not configured on the server."}), 500
 
-    client = OpenAI(
+    # OpenRouter APIクライアントを初期化
+    client = OpenAI( 
         base_url="https://openrouter.ai/api/v1",
         api_key=OPENROUTER_API_KEY,
         default_headers={
@@ -133,19 +156,22 @@ def undo_api():
         }
     )
 
+    # フロントエンドから送信されたJSONデータを取得
     data = request.get_json()
     history = data.get('history', [])
 
+    # 履歴がない場合はエラーを返す
     if not history:
         return jsonify({"error": "履歴がないため、元に戻せません。"}), 400
 
-    # 履歴の最後の項目を削除
+    # 履歴の最後の項目（直前の回答）を削除
     history.pop()
 
-    # 1つ前の状態の履歴から、再度質問を生成させる
+    # 1つ前の状態の履歴をテキスト形式に変換
     history_text = "\n".join([f"Q: {item['q']}\nA: {item['a']}" for item in history])
     user_choices = "「はい」「いいえ」「わからない」「たぶんそう」「部分的に違う」"
 
+    # AIに与える指示（システムプロンプト）を定義
     system_prompt = f"""
 あなたは「アキネーター」です。ユーザーが一つ前の状態に戻りたがっています。
 以下の対話履歴を元に、**もう一度同じ質問を生成してください**。
@@ -159,6 +185,7 @@ def undo_api():
 {history_text}
 """
 
+    # OpenRouter APIへのリクエストを実行
     try:
         chat_completion = client.chat.completions.create(
             messages=[
@@ -170,13 +197,14 @@ def undo_api():
         )
         response_text = chat_completion.choices[0].message.content
         response_json = json.loads(response_text)
+        app.logger.info("undo_api: request processed successfully.")
         return jsonify(response_json)
 
     except Exception as e:
         app.logger.error(f"Undo API call failed: {e}")
         return jsonify({"error": "AIサービスとの通信中にエラーが発生しました。"}), 500
 
-# スクリプトが直接実行された場合にのみ開発サーバーを起動
+# --- アプリケーションの実行 ---
 if __name__ == '__main__':
     if not OPENROUTER_API_KEY:
         print("警告: 環境変数 OPENROUTER_API_KEY が設定されていません。API呼び出しは失敗します。")

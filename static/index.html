@@ -41,11 +41,18 @@
                                 </div>
                             </div>
                             <div v-else>
-                                <button @click="answer('はい')" class="btn btn-primary btn-lg m-2 px-4">はい</button>
-                                <button @click="answer('いいえ')" class="btn btn-danger btn-lg m-2 px-4">いいえ</button>
-                                <button @click="answer('わからない')" class="btn btn-secondary btn-lg m-2">わからない</button>
-                                <button @click="answer('たぶんそう')" class="btn btn-info m-2">たぶんそう</button>
-                                <button @click="answer('部分的に違う')" class="btn btn-warning m-2">部分的に違う</button>
+                                <!-- 回答ボタンブロック -->
+                                <div class="d-flex flex-column gap-2 my-4">
+                                    <div class="d-flex gap-2">
+                                        <button @click="answer('はい')" type="button" class="btn btn-primary btn-lg flex-fill">はい</button>
+                                        <button @click="answer('いいえ')" type="button" class="btn btn-danger btn-lg flex-fill">いいえ</button>
+                                        <button @click="answer('わからない')" type="button" class="btn btn-secondary btn-lg flex-fill">わからない</button>
+                                    </div>
+                                    <div class="d-flex gap-2">
+                                        <button @click="answer('たぶんそう')" type="button" class="btn btn-info btn-lg flex-fill">たぶんそう</button>
+                                        <button @click="answer('部分的に違う')" type="button" class="btn btn-warning btn-lg flex-fill">部分的に違う</button>
+                                    </div>
+                                </div>
                             </div>
                             <button v-if="history.length > 0 && !isLoading" @click="undo" class="btn btn-link text-secondary mt-3">一つ前の質問に戻る</button>
                         </div>
